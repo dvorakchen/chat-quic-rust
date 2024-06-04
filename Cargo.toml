@@ -1,0 +1,23 @@
+[workspace]
+members = ["client", "server"]
+resolver = "2"
+
+[workspace.package]
+authors = ["dvorakchen <dvorakchen@outlook.com>"]
+edition = "2021"
+
+[workspace.dependencies]
+env_logger = "0.11.3"
+log = "0.4.21"
+dotenv = "0.15.0"
+
+s2n-quic = "1"
+tokio = { version = "1.37.0", features = [
+    "rt",
+    "macros",
+    "rt-multi-thread",
+    "io-std",
+    "io-util",
+] }
+ulid = "1.1.2"
+bytes = "1.6.0"
