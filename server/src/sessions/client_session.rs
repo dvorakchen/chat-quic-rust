@@ -9,7 +9,8 @@ use s2n_quic::{
     stream::{BidirectionalStream, SendStream},
 };
 
-use super::{server_session::ClientChange, ServerSession, Stop};
+use super::ServerSession;
+use common::*;
 
 pub struct ClientSession {
     server_addr: Addr<ServerSession>,
@@ -37,20 +38,21 @@ impl ClientSession {
         bytes: Bytes,
         ctx: &mut actix::Context<ClientSession>,
     ) -> Result<(), ClientSessionError> {
-        if let Ok(email) = String::from_utf8(bytes.to_vec()) {
-            info!("received data: {}", email);
-            info!("status: {:?}", self.status);
-            match self.status {
-                ClientStatus::Init => {
+        match self.status {
+            ClientStatus::Init => {
+                if let Ok(email) = String::from_utf8(bytes.to_vec()) {
                     self.change_email(email, ctx);
-                }
-                ClientStatus::LoggedIn => {
-                    info!("client: {} send back data", self.email);
-                    self.send_stream.as_mut().unwrap().send_data(bytes).unwrap();
+                } else {
+                    return Err(ClientSessionError::InvalidEmail);
                 }
             }
-        } else {
-            return Err(ClientSessionError::EmailInvalid);
+            ClientStatus::LoggedIn => {
+                let transfer: Transfer = bytes
+                    .try_into()
+                    .map_err(|_| ClientSessionError::InvalidBytes)?;
+
+                self.server_addr.do_send(transfer);
+            }
         }
 
         Ok(())
@@ -61,7 +63,6 @@ impl ClientSession {
             .send(ClientChange::UpdateEmail(self.email.clone(), email.clone()))
             .into_actor(self)
             .map(|res, act, _ctx| {
-                info!("in map");
                 if let Err(e) = res {
                     error!("{}", e);
                 } else {
@@ -83,13 +84,15 @@ enum ClientStatus {
 
 #[derive(Debug)]
 pub enum ClientSessionError {
-    EmailInvalid,
+    InvalidEmail,
+    InvalidBytes,
 }
 
 impl Display for ClientSessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
-            ClientSessionError::EmailInvalid => "invalid email",
+            ClientSessionError::InvalidEmail => "invalid email",
+            ClientSessionError::InvalidBytes => "invalid bytes",
         };
 
         write!(f, "{}", msg)
@@ -167,6 +170,21 @@ impl StreamHandler<Option<Bytes>> for ClientSession {
                 .send_data(e.to_string().into())
                 .expect("client send data failed");
         }
+    }
+}
+
+impl Handler<Transfer> for ClientSession {
+    type Result = Result<(), TransferError>;
+
+    fn handle(&mut self, msg: Transfer, _ctx: &mut Self::Context) -> Self::Result {
+        if self.email != msg.to {
+            return Err(TransferError::DestinationClientOffline);
+        }
+
+        let bytes = msg.to_bytes();
+        self.send_stream.as_mut().unwrap().send_data(bytes).unwrap();
+
+        Ok(())
     }
 }
 

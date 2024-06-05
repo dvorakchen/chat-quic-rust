@@ -2,11 +2,11 @@ use actix::prelude::*;
 use async_stream::stream;
 use log::info;
 use s2n_quic::Connection;
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
-use super::Stop;
 use crate::sessions::ClientSession;
+use common::*;
 
 pub struct ServerSession {
     quic_server: Arc<Mutex<s2n_quic::Server>>,
@@ -67,27 +67,6 @@ impl StreamHandler<Option<Connection>> for ServerSession {
     }
 }
 
-#[derive(Message)]
-#[rtype(result = "Result<(), ClientChangeError>")]
-pub enum ClientChange {
-    UpdateEmail(String, String),
-}
-
-#[derive(Debug)]
-pub enum ClientChangeError {
-    NewEmailAlreadyExisted,
-}
-
-impl Display for ClientChangeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let msg = match self {
-            ClientChangeError::NewEmailAlreadyExisted => "new email already exsited",
-        };
-
-        write!(f, "{}", msg)
-    }
-}
-
 impl Handler<ClientChange> for ServerSession {
     type Result = Result<(), ClientChangeError>;
 
@@ -106,6 +85,23 @@ impl Handler<ClientChange> for ServerSession {
                 }
             }
         }
+
+        Ok(())
+    }
+}
+
+impl Handler<Transfer> for ServerSession {
+    type Result = Result<(), TransferError>;
+
+    fn handle(&mut self, msg: Transfer, _ctx: &mut Self::Context) -> Self::Result {
+        let des = self.clients.get_mut(&msg.to);
+        if des.is_none() {
+            return Err(TransferError::DestinationClientOffline);
+        }
+
+        let des = des.unwrap();
+
+        des.do_send(msg);
 
         Ok(())
     }

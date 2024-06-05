@@ -1,22 +1,38 @@
+mod client;
+
 use std::{error::Error, io::Write};
 
+use clap::Parser;
 use s2n_quic::{client::Connect, Client};
 use std::{net::SocketAddr, path::Path};
 
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long, short)]
+    certificate: String,
+    #[arg(long, short)]
+    server: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    dotenv::dotenv().unwrap();
+    env_logger::init();
+
+    let args = Args::parse();
+
     print!("connected, enter your email: ");
     std::io::stdout().flush().unwrap();
 
     let client = Client::builder()
         .with_tls(
             // webpki_roots::TLS_SERVER_ROOTS.iter().cloned()
-            Path::new("/home/dvorak/certificates/server.crt"),
+            Path::new(&args.certificate),
         )?
         .with_io("0.0.0.0:0")?
         .start()?;
     // webpki_roots::TLS_SERVER_ROOTS.iter().cloned()
-    let addr: SocketAddr = "127.0.0.1:4433".parse()?;
+    let addr: SocketAddr = args.server.parse()?;
     let connect = Connect::new(addr).with_server_name("localhost");
     let mut connection = client.connect(connect).await?;
 

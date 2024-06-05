@@ -1,5 +1,5 @@
 [workspace]
-members = ["client", "server"]
+members = ["client", "common", "server"]
 resolver = "2"
 
 [workspace.package]
@@ -22,3 +22,6 @@ tokio = { version = "1.37.0", features = [
 ] }
 ulid = "1.1.2"
 bytes = "1.6.0"
+actix = "0.13.3"
+actix-rt = "2.9.0"
+clap = { version = "4.5.4", features = ["derive"] }

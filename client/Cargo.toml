@@ -6,8 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-tokio = { workspace = true }
-env_logger = { workspace = true }
-dotenv = { workspace = true }
-log = { workspace = true }
-s2n-quic = { workspace = true }
+clap.workspace = true
+tokio.workspace = true
+env_logger.workspace = true
+dotenv.workspace = true
+log.workspace = true
+s2n-quic.workspace = true
