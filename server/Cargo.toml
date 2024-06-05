@@ -19,4 +19,3 @@ clap = { version = "4.5.4", features = ["derive"] }
 async-stream = "0.3.5"
 actix-rt = "2.9.0"
 futures = "0.3.30"
-ractor = { version = "0.10.3", features = ["async-trait"] }
