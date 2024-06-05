@@ -1,10 +1,13 @@
-use std::error::Error;
+use std::{error::Error, io::Write};
 
 use s2n_quic::{client::Connect, Client};
 use std::{net::SocketAddr, path::Path};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    print!("connected, enter your email: ");
+    std::io::stdout().flush().unwrap();
+
     let client = Client::builder()
         .with_tls(
             // webpki_roots::TLS_SERVER_ROOTS.iter().cloned()
@@ -22,6 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // open a new stream and split the receiving and sending sides
     let stream = connection.open_bidirectional_stream().await?;
+
     let (mut receive_stream, mut send_stream) = stream.split();
 
     // spawn a task that copies responses from the server to stdout

@@ -1,8 +1,8 @@
 use actix::prelude::*;
 use async_stream::stream;
-use log::{info};
+use log::info;
 use s2n_quic::Connection;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Display, sync::Arc};
 use tokio::sync::Mutex;
 
 use super::Stop;
@@ -59,10 +59,55 @@ impl StreamHandler<Option<Connection>> for ServerSession {
         let connection = item.unwrap();
         let tempoparily_id = ulid::Ulid::new().to_string();
 
-        let client_addr = ClientSession::new(connection, tempoparily_id.clone()).start();
+        let client_addr =
+            ClientSession::new(connection, tempoparily_id.clone(), ctx.address()).start();
 
         info!("temporarily client id is: {}", tempoparily_id);
         self.clients.insert(tempoparily_id, client_addr);
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<(), ClientChangeError>")]
+pub enum ClientChange {
+    UpdateEmail(String, String),
+}
+
+#[derive(Debug)]
+pub enum ClientChangeError {
+    NewEmailAlreadyExisted,
+}
+
+impl Display for ClientChangeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg = match self {
+            ClientChangeError::NewEmailAlreadyExisted => "new email already exsited",
+        };
+
+        write!(f, "{}", msg)
+    }
+}
+
+impl Handler<ClientChange> for ServerSession {
+    type Result = Result<(), ClientChangeError>;
+
+    fn handle(&mut self, msg: ClientChange, _ctx: &mut Self::Context) -> Self::Result {
+        match msg {
+            ClientChange::UpdateEmail(old_email, new_email) => {
+                info!(
+                    "server change client email, old: {}, new: {}",
+                    old_email, new_email
+                );
+                if self.clients.contains_key(&new_email) {
+                    return Err(ClientChangeError::NewEmailAlreadyExisted);
+                }
+                if let Some(client_session) = self.clients.remove(&old_email) {
+                    self.clients.insert(new_email, client_session);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

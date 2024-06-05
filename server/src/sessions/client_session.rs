@@ -1,17 +1,18 @@
-use std::{fmt::Display};
+use std::fmt::Display;
 
 use actix::prelude::*;
 use async_stream::stream;
 use bytes::Bytes;
-use log::{info, warn};
+use log::{error, info, warn};
 use s2n_quic::{
     connection::Connection,
     stream::{BidirectionalStream, SendStream},
 };
 
-use super::Stop;
+use super::{server_session::ClientChange, ServerSession, Stop};
 
 pub struct ClientSession {
+    server_addr: Addr<ServerSession>,
     conn: Option<Connection>,
     email: String,
     send_stream: Option<SendStream>,
@@ -19,10 +20,11 @@ pub struct ClientSession {
 }
 
 impl ClientSession {
-    pub fn new(conn: Connection, email: String) -> Self {
+    pub fn new(conn: Connection, email: String, server_addr: Addr<ServerSession>) -> Self {
         info!("client new, email: {}", email);
 
         Self {
+            server_addr,
             conn: Some(conn),
             email,
             send_stream: None,
@@ -30,14 +32,17 @@ impl ClientSession {
         }
     }
 
-    fn handle_data(&mut self, bytes: Bytes) -> Result<(), ClientSessionError> {
-        let old_email = self.email.clone();
+    fn handle_data(
+        &mut self,
+        bytes: Bytes,
+        ctx: &mut actix::Context<ClientSession>,
+    ) -> Result<(), ClientSessionError> {
         if let Ok(email) = String::from_utf8(bytes.to_vec()) {
+            info!("received data: {}", email);
+            info!("status: {:?}", self.status);
             match self.status {
                 ClientStatus::Init => {
-                    self.email = email;
-                    self.status = ClientStatus::LoggedIn;
-                    info!("client: {} change email: {}", old_email, self.email);
+                    self.change_email(email, ctx);
                 }
                 ClientStatus::LoggedIn => {
                     info!("client: {} send back data", self.email);
@@ -50,8 +55,27 @@ impl ClientSession {
 
         Ok(())
     }
+
+    fn change_email(&mut self, email: String, ctx: &mut actix::Context<ClientSession>) {
+        self.server_addr
+            .send(ClientChange::UpdateEmail(self.email.clone(), email.clone()))
+            .into_actor(self)
+            .map(|res, act, _ctx| {
+                info!("in map");
+                if let Err(e) = res {
+                    error!("{}", e);
+                } else {
+                    act.email = email;
+                    act.status = ClientStatus::LoggedIn;
+                    info!("change email successful");
+                }
+            })
+            .wait(ctx);
+        info!("after email changed");
+    }
 }
 
+#[derive(Debug)]
 enum ClientStatus {
     Init,
     LoggedIn,
@@ -108,7 +132,6 @@ impl Actor for ClientSession {
 
 impl StreamHandler<BidirectionalStream> for ClientSession {
     fn handle(&mut self, stream: BidirectionalStream, ctx: &mut Self::Context) {
-        println!("connected, enter your email");
         let email = self.email.clone();
         let (mut recv, send) = stream.split();
 
@@ -136,7 +159,8 @@ impl StreamHandler<Option<Bytes>> for ClientSession {
             ctx.stop();
         }
 
-        if let Err(e) = self.handle_data(bytes.unwrap()) {
+        if let Err(e) = self.handle_data(bytes.unwrap(), ctx) {
+            error!("{}", e);
             self.send_stream
                 .as_mut()
                 .unwrap()
