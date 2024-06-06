@@ -105,12 +105,13 @@ impl Actor for ClientSession {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        info!("client: {} startd", self.email);
+        info!("client: {} started", self.email);
         let email = self.email.clone();
 
         let recv_stream = {
             let conn = self.conn.take();
             if conn.is_none() {
+                info!("conn none");
                 return;
             }
             let mut conn = conn.unwrap();
@@ -135,6 +136,7 @@ impl Actor for ClientSession {
 
 impl StreamHandler<BidirectionalStream> for ClientSession {
     fn handle(&mut self, stream: BidirectionalStream, ctx: &mut Self::Context) {
+        info!("openn bidirectional stream");
         let email = self.email.clone();
         let (mut recv, send) = stream.split();
 

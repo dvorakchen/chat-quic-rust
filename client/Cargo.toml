@@ -12,3 +12,9 @@ env_logger.workspace = true
 dotenv.workspace = true
 log.workspace = true
 s2n-quic.workspace = true
+actix-rt.workspace = true
+actix.workspace = true
+async-stream.workspace = true
+bytes.workspace = true
+
+common = { path = "../common" }

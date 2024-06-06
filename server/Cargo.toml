@@ -17,6 +17,6 @@ bytes.workspace = true
 actix.workspace = true
 actix-rt.workspace = true
 clap.workspace = true
-async-stream = "0.3.5"
+async-stream.workspace = true
 futures = "0.3.30"
 common = { path = "../common" }
